@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# lan_clerk.sh — interactive menu for managing SSH connections and checking
+# host/samba reachability. Requires passwordless key auth on the remote host.
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+source "${SCRIPT_DIR}/../lib/lan_clerk_lib.sh"
+
+user=""
+ip=""
+
+while true; do
+    PS3="Select option: "
+    select opt in "New connection" "Existing connection" "List connections" "Quit"; do
+        case "$REPLY" in
+            4|q) exit 0 ;;
+            1)
+                read -rp "User: " user
+                read -rp "IP: " ip
+                get_interfaces "$user" "$ip" || break
+                ip=$(select_iface "${SHARE_DIR}/${user}_interfaces.txt") || break
+                break 2
+                ;;
+            2)
+                hostfile=$(select_host) || break
+                ip=$(select_iface "${SHARE_DIR}/${hostfile}") || break
+                user="${hostfile%_interfaces.txt}"
+                break 2
+                ;;
+            3)
+                list_connections
+                break
+                ;;
+            *)
+                echo "Invalid entry." >&2
+                ;;
+        esac
+    done
+done
+
+PS3="Select action (q to quit): "
+select action in "Check reachable" "Check Samba (port 445)" "Refresh interfaces"; do
+    case "$REPLY" in
+        q) break ;;
+        *)
+            if [[ -n "$action" ]]; then
+                case "$action" in
+                    "Check reachable")
+                        if is_reachable "$ip"; then
+                            echo "${ip} is reachable."
+                        else
+                            echo "${ip} is not reachable."
+                        fi
+                        ;;
+                    "Check Samba (port 445)")
+                        if is_reachable "$ip" 445; then
+                            echo "Samba is available at ${ip}:445."
+                        else
+                            echo "Samba is not available at ${ip}:445."
+                        fi
+                        ;;
+                    "Refresh interfaces")
+                        get_interfaces "$user" "$ip" && echo "Record updated."
+                        ;;
+                esac
+            else
+                echo "Invalid entry." >&2
+            fi
+            ;;
+    esac
+done
