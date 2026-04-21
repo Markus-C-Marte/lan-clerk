@@ -3,6 +3,36 @@
 SHARE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/lan_clerk"
 mkdir -p "$SHARE_DIR"
 
+ip_to_int() {
+    local IFS='.'
+    read -r a b c d <<< "$1"
+    echo $(( (a << 24) + (b << 16) + (c << 8) + d ))
+}
+
+cidr_mask() {
+    echo $(( 0xFFFFFFFF << (32 - $1) & 0xFFFFFFFF ))
+}
+
+same_subnet() {
+    local remote_ip="$1"
+    local remote_int
+    remote_int=$(ip_to_int "$remote_ip")
+
+    while IFS= read -r line; do
+        local cidr
+        cidr=$(awk '{print $4}' <<< "$line")
+        local local_ip="${cidr%/*}"
+        local prefix="${cidr#*/}"
+        local local_int mask
+        local_int=$(ip_to_int "$local_ip")
+        mask=$(cidr_mask "$prefix")
+        if (( (local_int & mask) == (remote_int & mask) )); then
+            return 0
+        fi
+    done < <(ip -o -4 addr show | grep -v ' lo ')
+    return 1
+}
+
 is_reachable() {
     # $1=IP  $2=port
     local ip="$1"

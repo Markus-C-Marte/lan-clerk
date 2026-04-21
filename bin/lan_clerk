@@ -38,21 +38,34 @@ while true; do
 done
 
 PS3="Select action (q to quit): "
-select action in "Check reachable" "Check Samba (port 445)" "Refresh interfaces"; do
+select action in "SSH" "Check reachable" "Check Samba (port 445)" "Refresh interfaces"; do
     case "$REPLY" in
         q) break ;;
         *)
             if [[ -n "$action" ]]; then
                 case "$action" in
+                    "SSH")
+                        if ! same_subnet "$ip"; then
+                            echo "No local interface shares a subnet with ${ip} -- skipping." >&2
+                        elif is_reachable "$ip"; then
+                            ssh "${user}@${ip}"
+                        else
+                            echo "${ip} is not reachable." >&2
+                        fi
+                        ;;
                     "Check reachable")
-                        if is_reachable "$ip"; then
+                        if ! same_subnet "$ip"; then
+                            echo "No local interface shares a subnet with ${ip} -- skipping." >&2
+                        elif is_reachable "$ip"; then
                             echo "${ip} is reachable."
                         else
                             echo "${ip} is not reachable."
                         fi
                         ;;
                     "Check Samba (port 445)")
-                        if is_reachable "$ip" 445; then
+                        if ! same_subnet "$ip"; then
+                            echo "No local interface shares a subnet with ${ip} -- skipping." >&2
+                        elif is_reachable "$ip" 445; then
                             echo "Samba is available at ${ip}:445."
                         else
                             echo "Samba is not available at ${ip}:445."
